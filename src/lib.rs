@@ -18,6 +18,28 @@ fn is_remote_path(path: &str) -> bool {
     path.starts_with("libsql://") || path.starts_with("http://") || path.starts_with("https://")
 }
 
+struct ValueWrapper(libsql_core::Value);
+
+impl TryFrom<&PyAny> for ValueWrapper {
+    type Error = PyErr;
+
+    fn try_from(value: &PyAny) -> Result<Self, Self::Error> {
+        if let Ok(value) = value.extract::<i32>() {
+            Ok(ValueWrapper(libsql_core::Value::Integer(value as i64)))
+        } else if let Ok(value) = value.extract::<f64>() {
+            Ok(ValueWrapper(libsql_core::Value::Real(value)))
+        } else if let Ok(value) = value.extract::<&str>() {
+            Ok(ValueWrapper(libsql_core::Value::Text(value.to_string())))
+        } else if let Ok(value) = value.extract::<&[u8]>() {
+            // FIXME @shubhamp: This may not be correct.
+            Ok(ValueWrapper(libsql_core::Value::Blob(value.to_vec())))
+        } else {
+            Ok(ValueWrapper(libsql_core::Value::Null))
+        }
+    }
+}
+
+#[allow(unused_variables)]
 #[pyfunction]
 #[pyo3(signature = (database, isolation_level="DEFERRED".to_string(), check_same_thread=true, uri=false, sync_url=None, sync_interval=None, auth_token="", encryption_key=None))]
 fn connect(
@@ -218,6 +240,12 @@ impl Connection {
         Ok(())
     }
 
+    fn close(self_: PyRef<'_, Self>) -> PyResult<()> {
+        // FIXME @shubhamp: This is a hack to drop the connection guard. May not be correct.
+        drop(self_);
+        Ok(())
+    }
+
     #[getter]
     fn isolation_level(self_: PyRef<'_, Self>) -> Option<String> {
         self_.isolation_level.clone()
@@ -383,7 +411,8 @@ impl Cursor {
     }
 
     fn close(_self: PyRef<'_, Self>) -> PyResult<()> {
-        // TODO
+        // FIXME @shubhamp: Dont know if this is correct.
+        drop(_self);
         Ok(())
     }
 }
@@ -402,16 +431,7 @@ async fn execute(cursor: &Cursor, sql: String, parameters: Option<&PyTuple>) -> 
         Some(parameters) => {
             let mut params = vec![];
             for parameter in parameters.iter() {
-                let param = match parameter.extract::<i32>() {
-                    Ok(value) => libsql_core::Value::Integer(value as i64),
-                    Err(_) => match parameter.extract::<f64>() {
-                        Ok(value) => libsql_core::Value::Real(value),
-                        Err(_) => match parameter.extract::<&str>() {
-                            Ok(value) => libsql_core::Value::Text(value.to_string()),
-                            Err(_) => todo!(),
-                        },
-                    },
-                };
+                let param = ValueWrapper::try_from(parameter)?.0;
                 params.push(param);
             }
             libsql_core::params::Params::Positional(params)
@@ -440,22 +460,19 @@ fn stmt_is_dml(sql: &str) -> bool {
 fn convert_row(py: Python, row: libsql_core::Row, column_count: i32) -> PyResult<&PyTuple> {
     let mut elements: Vec<Py<PyAny>> = vec![];
     for col_idx in 0..column_count {
-        let col_type = row.column_type(col_idx).map_err(to_py_err)?;
-        let value = match col_type {
-            libsql::ValueType::Integer => {
-                let value = row.get::<i32>(col_idx).map_err(to_py_err)?;
+        let libsql_value = row.get_value(col_idx).map_err(to_py_err)?;
+        let value = match libsql_value {
+            libsql_core::Value::Integer(v) => {
+                let value = v as i32;
                 value.into_py(py)
             }
-            libsql::ValueType::Real => {
-                let value = row.get::<f64>(col_idx).map_err(to_py_err)?;
+            libsql_core::Value::Real(v) => v.into_py(py),
+            libsql_core::Value::Text(v) => v.into_py(py),
+            libsql_core::Value::Blob(v) => {
+                let value = v.as_slice();
                 value.into_py(py)
             }
-            libsql::ValueType::Blob => todo!("blobs not supported"),
-            libsql::ValueType::Text => {
-                let value = row.get::<String>(col_idx).map_err(to_py_err)?;
-                value.into_py(py)
-            }
-            libsql::ValueType::Null => py.None(),
+            libsql_core::Value::Null => py.None(),
         };
         elements.push(value);
     }
