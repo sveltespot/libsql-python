@@ -484,11 +484,11 @@ fn convert_row(py: Python, row: libsql_core::Row, column_count: i32) -> PyResult
     Ok(PyTuple::new(py, elements))
 }
 
-create_exception!(libsql_experimental, Error, pyo3::exceptions::PyException);
+create_exception!(pylibsql, Error, pyo3::exceptions::PyException);
 
 #[pymodule]
-fn libsql_experimental(py: Python, m: &PyModule) -> PyResult<()> {
-    let _ = tracing_subscriber::fmt::try_init();
+fn pylibsql(py: Python, m: &PyModule) -> PyResult<()> {
+    // let _ = tracing_subscriber::fmt::try_init();
     m.add("paramstyle", "qmark")?;
     m.add("sqlite_version_info", (3, 42, 0))?;
     m.add("Error", py.get_type::<Error>())?;

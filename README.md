@@ -1,49 +1,43 @@
-<p align="center">
-  <a href="https://docs.turso.tech/sdk/ts/quickstart">
-    <img alt="Turso + Python" src="https://github.com/tursodatabase/libsql-experimental-python/assets/950181/3748f2b3-872e-4cdd-bbe3-78491fd81dfa" width="1000">
-    <h3 align="center">Turso + Python</h3>
-  </a>
-</p>
+# PyLibSQL
 
-<p align="center">
-  SQLite for Production. Powered by <a href="https://turso.tech/libsql">libSQL</a>.
-</p>
+This is a fork of the original libsql-experimental-python project.
 
-<p align="center">
-  <a href="https://turso.tech"><strong>Turso</strong></a> ·
-  <a href="https://docs.turso.tech/quickstart"><strong>Quickstart</strong></a> ·
-  <a href="/examples"><strong>Examples</strong></a> ·
-  <a href="https://docs.turso.tech"><strong>Docs</strong></a> ·
-  <a href="https://discord.gg/turso"><strong>Discord</strong></a> ·
-  <a href="https://blog.turso.tech/"><strong>Blog &amp; Tutorials</strong></a>
-</p>
+> [!CAUTION]
+> This is a work in progress and is not yet ready for production use.**
 
-<p align="center">
-  <a href="https://pypi.org/project/libsql-experimental">
-    <img src="https://badge.fury.io/py/libsql-experimental.svg" alt="PyPI" title="PyPI" />
-  </a>
-  <a href="https://discord.com/invite/4B5D7hYwub">
-    <img src="https://dcbadge.vercel.app/api/server/4B5D7hYwub?style=flat" alt="discord activity" title="join us on discord" />
-  </a>
-</p>
+## Installation
 
----
+```bash
+pip install pylibsql
+```
 
-## Documentation
+## Usage
 
-1. [Turso Quickstart](https://docs.turso.tech/quickstart) &mdash; Learn how create and connect your first database.
-2. [SDK Quickstart](https://docs.turso.tech/sdk/python/quickstart) &mdash; Learn how to install and execute queries using the libSQL client.
-3. [SDK Reference](https://docs.turso.tech/sdk/python/reference) &mdash; Dive deeper with the libSQL SDK reference and examples.
+```python
+import pylibsql
 
-### What is Turso?
+con = pylibsql.connect("hello.db", sync_url="http://localhost:8080", auth_token="")
 
-[Turso](https://turso.tech) is a SQLite-compatible database built on [libSQL](https://docs.turso.tech/libsql), the Open Contribution fork of SQLite. It enables scaling to hundreds of thousands of databases per organization and supports replication to any location, including your own servers, for microsecond-latency access.
+con.sync()
 
-Learn more about what you can do with Turso:
+cur = con.cursor()
 
-- [Embedded Replicas](https://docs.turso.tech/features/embedded-replicas)
-- [Platform API](https://docs.turso.tech/features/platform-api)
-- [Data Edge](https://docs.turso.tech/features/data-edge)
-- [Branching](https://docs.turso.tech/features/branching)
-- [Point-in-Time Recovery](https://docs.turso.tech/features/point-in-time-recovery)
-- [Scale to Zero](https://docs.turso.tech/features/scale-to-zero)
+cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER, email TEXT);")
+cur.execute("INSERT INTO users VALUES (1, 'penberg@iki.fi')")
+
+print(cur.execute("SELECT * FROM users").fetchone())
+```
+
+## Development
+
+### Dependencies
+
+  - Python 3.7+ with pip and venv (Install python-dev package for your distribution)
+  - Rust toolchain
+  - maturin (install with `pip install maturin`)
+
+### Building
+  
+  ```bash
+  maturin develop
+  ```

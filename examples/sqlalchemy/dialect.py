@@ -2,14 +2,9 @@ import os
 import urllib.parse
 
 from sqlalchemy import util
-from sqlalchemy.dialects import registry as _registry
 from sqlalchemy.dialects.sqlite.pysqlite import SQLiteDialect_pysqlite
 
 __version__ = "0.1.0-pre"
-
-_registry.register(
-    "sqlite.libsql", "sqlalchemy_libsql", "SQLiteDialect_libsql"
-)
 
 
 def _build_connection_url(url, query, secure):
@@ -21,9 +16,9 @@ def _build_connection_url(url, query, secure):
             return f"{url.database}?{query_str}"
         return url.database
     elif secure:  # yes, pop to remove
-        scheme = "wss"
+        scheme = "https"
     else:
-        scheme = "ws"
+        scheme = "http"
 
     if url.username and url.password:
         netloc = f"{url.username}:{url.password}@{url.host}"
@@ -53,22 +48,22 @@ class SQLiteDialect_libsql(SQLiteDialect_pysqlite):
 
     @classmethod
     def import_dbapi(cls):
-        import libsql_experimental as libsql
+        import pylibsql as libsql
 
         return libsql
 
     def on_connect(self):
-        import libsql_experimental as libsql
+        import pylibsql as libsql
 
         sqlite3_connect = super().on_connect()
 
-        def connect(conn):
+        def do_on_connect(conn):
             # LibSQL: there is no support for create_function()
-            if isinstance(conn, Connection):
+            if isinstance(conn, libsql.Connection):
                 return
             return sqlite3_connect(conn)
 
-        return connect
+        return do_on_connect
 
     def create_connect_args(self, url):
         pysqlite_args = (
@@ -78,12 +73,18 @@ class SQLiteDialect_libsql(SQLiteDialect_pysqlite):
             ("detect_types", int),
             ("check_same_thread", bool),
             ("cached_statements", int),
+            ("sync_url", str),
+            ("auth_token", str),
             ("secure", bool),  # LibSQL extra, selects between ws and wss
         )
         opts = url.query
         libsql_opts = {}
         for key, type_ in pysqlite_args:
             util.coerce_kw_type(opts, key, type_, dest=libsql_opts)
+
+        sync_url = opts.get("sync_url", None)
+        if sync_url is not None:
+            libsql_opts["sync_url"] = sync_url
 
         if url.host:
             libsql_opts["uri"] = True
@@ -109,9 +110,7 @@ class SQLiteDialect_libsql(SQLiteDialect_pysqlite):
             if connect_url != ":memory:":
                 connect_url = os.path.abspath(connect_url)
 
-        libsql_opts.setdefault(
-            "check_same_thread", not self._is_url_file_db(url)
-        )
+        libsql_opts.setdefault("check_same_thread", not self._is_url_file_db(url))
 
         return ([connect_url], libsql_opts)
 
