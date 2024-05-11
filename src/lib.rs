@@ -65,21 +65,26 @@ fn connect(
         None => None,
     };
     let db = if is_remote_path(&database) {
-        let result = libsql::Database::open_remote_internal(database.clone(), auth_token, ver);
+        let fut = libsql::Builder::new_remote(database, auth_token.to_string())
+            .version(ver)
+            .build();
+        tokio::pin!(fut);
+        let result = rt.block_on(check_signals(py, fut));
         result.map_err(to_py_err)?
     } else {
         match sync_url {
             Some(sync_url) => {
                 let sync_interval = sync_interval.map(|i| std::time::Duration::from_secs_f64(i));
-                let fut = libsql::Database::open_with_remote_sync_internal(
-                    database,
-                    sync_url,
-                    auth_token,
-                    Some(ver),
-                    true,
-                    encryption_config,
-                    sync_interval,
-                );
+                let mut builder =
+                    libsql::Builder::new_remote_replica(database, sync_url, auth_token.to_string())
+                        .version(ver);
+                if let Some(config) = encryption_config {
+                    builder = builder.encryption_config(config);
+                }
+                if let Some(sync_interval) = sync_interval {
+                    builder = builder.sync_interval(sync_interval);
+                }
+                let fut = builder.build();
                 tokio::pin!(fut);
                 let result = rt.block_on(check_signals(py, fut));
                 result.map_err(to_py_err)?
