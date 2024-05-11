@@ -1,14 +1,24 @@
 # PyLibSQL
 
-This is a fork of the original libsql-experimental-python project.
+This is a fork of the original [libsql-experimental-python](https://github.com/tursodatabase/libsql-experimental-python/) project.
 
 > [!CAUTION]
-> This is a work in progress and is not yet ready for production use.**
+> This is a work in progress and is not yet ready for production use.
 
 ## Installation
 
+> [!NOTE]
+> This package is not yet available on PyPI and must be installed from source.
+> Easiest way to install is to clone the repository, source the virtual environment
+> and run `maturin develop`.
+
 ```bash
-pip install pylibsql
+git clone https://github.com/sveltespot/pylibsql.git
+cd pylibsql
+python3 -m venv ~/.venv
+source ~/.venv/bin/activate
+pip install maturin
+maturin develop
 ```
 
 ## Usage
